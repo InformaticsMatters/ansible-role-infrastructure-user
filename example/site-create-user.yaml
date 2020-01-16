@@ -1,0 +1,15 @@
+---
+
+- hosts: server
+  tasks:
+  - include_role:
+      name: informaticsmatters.infrastructure_user
+    vars:
+      iu_action: create
+      iu_hostname: keycloak.example.com
+      iu_realm: im
+      iu_realm_manager: manager
+      iu_realm_manager_password: abc00000
+      iu_users:
+      - username: alan
+        password: blob1234

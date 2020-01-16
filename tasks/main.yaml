@@ -1,0 +1,13 @@
+---
+
+- include_tasks: prep.yaml
+
+# Go...
+
+- name: Check action
+  assert:
+    that: iu_action in ['create', 'delete']
+
+# Execute the desired action...
+
+- include_tasks: "{{ iu_action }}-user.yaml"

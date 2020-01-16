@@ -1,0 +1,63 @@
+---
+
+# Variables that control this set of tasks are: -
+#
+# - iu_hostname               The Keycloak server URL
+#                             typically 'sso.example.org'
+#                             (and assumed to be 'https://')
+# - iu_realm                  The realm the users are to be added to
+# - iu_realm_manager          The manager user in the realm
+# - iu_realm_manager_password The realm user password
+# - iu_users                  A list of users contained in a dictionary
+#                             of name and password.
+
+# -----------------------------------------------------------------------------
+
+- name: Assert control variables
+  assert:
+    that:
+    - iu_hostname|length > 0
+    - iu_realm|length > 0
+    - iu_realm_manager|length > 0
+    - iu_realm_manager_password|length > 0
+    - iu_users|length > 0
+
+- name: Check user is not manager
+  assert:
+    that: item.username != iu_realm_manager
+    fail_msg: You cannot delete the manager!
+  with_items:
+  - "{{ iu_users }}"
+
+# Get a keycloak token (sets the fact 'iu_token').
+
+- include_tasks: get-keycloak-token.yaml
+
+- name: Set API endpoint
+  set_fact:
+    keycloak_endpoint: https://{{ iu_hostname }}/auth/admin/realms/{{ iu_realm }}/users
+
+- name: Query Users
+  uri:
+    url: "{{ keycloak_endpoint }}?username={{ item.username }}"
+    headers:
+      Authorization: bearer {{ iu_token }}
+  register: keycloak_users
+  with_items:
+  - "{{ iu_users }}"
+  changed_when: False
+
+- name: Collect User Identities
+  set_fact:
+    user_identities: "{{ keycloak_users|json_query('results[*].json[*].id')|flatten }}"
+  changed_when: False
+
+- name: Delete Keycloak Users
+  uri:
+    url: "{{ keycloak_endpoint }}/{{ item }}"
+    method: DELETE
+    status_code: 204
+    headers:
+      Authorization: bearer {{ iu_token }}
+  with_items:
+  - "{{ user_identities }}"

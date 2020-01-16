@@ -1,0 +1,159 @@
+---
+
+# Variables that control this set of tasks are: -
+#
+# - iu_hostname               The Keycloak server URL
+#                             typically 'sso.example.org'
+#                             (and assumed to be 'https://')
+# - iu_realm                  The realm the users are to be added to
+# - iu_realm_manager          The manager user in the realm
+# - iu_realm_manager_password The realm user password
+# - iu_users                  A list of users contained in a dictionary
+#                             of name and password.
+
+# -----------------------------------------------------------------------------
+
+- name: Assert control variables
+  assert:
+    that:
+    - iu_hostname|length > 0
+    - iu_realm|length > 0
+    - iu_realm_manager|length > 0
+    - iu_realm_manager_password|length > 0
+    - iu_users|length > 0
+
+- name: Check user is not manager
+  assert:
+    that: item.username != iu_realm_manager
+    fail_msg: You cannot add the manager!
+  with_items:
+  - "{{ iu_users }}"
+
+# Get a keycloak token (sets the fact 'iu_token').
+
+- include_tasks: get-keycloak-token.yaml
+
+# Adding users and passwords.
+# The steps here are: -
+#
+# 1. Get a list of users using the using the supplied users
+#    that are already known (this might be nobody)
+# 2. Add all the users from the users list that aren't known
+# 3. Get user identities for all the users in the users_file
+# 4. Set (reset) passwords for all the users that were added in step 2.
+
+#####
+# 1 #
+#####
+#
+# Get a list of users that are already known.
+# Here we iterate through the users file checking Keycloak to see if the user
+# exists. Existing users are collected in 'keycloak_users'
+
+- name: Set API endpoint
+  set_fact:
+    keycloak_endpoint: https://{{ iu_hostname }}/auth/admin/realms/{{ iu_realm }}/users
+
+- name: Query Users
+  uri:
+    url: "{{ keycloak_endpoint }}?username={{ item.username }}"
+    headers:
+      Authorization: bearer {{ iu_token }}
+  register: keycloak_users
+  with_items:
+  - "{{ iu_users }}"
+  changed_when: False
+
+# The above 'query' is run for each expected user.
+# The resultant `keycloak_users' variable is a structure
+# with each query represented as an element in the 'results' array.
+# If the user exists it will have a 'username' property in the 'json'
+# array. i.e.
+#
+#  "results" [{
+#    "json": [{
+#      "username": "blah"
+#
+# If the user does not exist the 'json' array is empty.
+# To simplify further processing, we'd like a nice flat list.
+- name: Collect Users
+  set_fact:
+    known_users: "{{ keycloak_users|json_query('results[*].json[*].username')|flatten }}"
+  changed_when: False
+
+#####
+# 2 #
+#####
+#
+# Now, add all the users that do not already exist.
+
+- name: Add Keycloak Users (that do not exist)
+  uri:
+    url: "{{ keycloak_endpoint }}"
+    method: POST
+    body: >-
+      {"username": "{{ username }}",
+       "enabled": "true"}
+    body_format: json
+    status_code: 201
+    headers:
+      Authorization: bearer {{ iu_token }}
+  vars:
+    username: "{{ item.username }}"
+  with_items:
+  - "{{ iu_users }}"
+  when: username not in known_users
+
+#####
+# 3 #
+#####
+#
+# We now need to set (reset) the user's password.
+# to do that we need the user's ID.
+# Rather than examine the output of the 'create user'
+# command above it's simpler to get each user again
+# and then collect the identities from the results.
+
+- name: Query Users (Reprise)
+  uri:
+    url: "{{ keycloak_endpoint }}?username={{ username }}"
+    headers:
+      Authorization: bearer {{ iu_token }}
+  register: keycloak_users
+  vars:
+    username: "{{ item.username }}"
+  with_items:
+  - "{{ iu_users }}"
+  changed_when: False
+
+- name: Collect User Identities
+  set_fact:
+    user_identities: "{{ keycloak_users|json_query('results[*].json[*].id')|flatten }}"
+  changed_when: False
+
+#####
+# 4 #
+#####
+#
+# Now we add (reset) the password for each user that we've added
+# i.e. all the users that were not already known.
+
+- name: Set (Reset) Keycloak User Passwords (for all)
+  uri:
+    url: "{{ keycloak_endpoint }}/{{ user_id }}/reset-password"
+    method: PUT
+    body: >-
+      {"type": "password",
+       "temporary": "false",
+       "value": "{{ password }}"}
+    body_format: json
+    status_code: 204
+    headers:
+      Authorization: bearer {{ iu_token }}
+  vars:
+    username: "{{ item.1.username }}"
+    user_id: "{{ item.0 }}"
+    password: "{{ item.1.password }}"
+  with_together:
+  - "{{ user_identities }}"
+  - "{{ iu_users }}"

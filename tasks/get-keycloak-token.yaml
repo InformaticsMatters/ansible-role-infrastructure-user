@@ -1,0 +1,31 @@
+---
+
+# A general play that can operate outside of the main deployment.
+# It gets the Keycloak admin user and password (from the well-known secrets)
+# and then gets an API token from the server.
+#
+# This play expects the following: -
+#
+# - iu_hostname to be set (i.e. 'example.com')
+# - iu_realm to be set (i.e. 'master' or some such)
+# - iu_realm_manager and iu_realm_manager_password (for the realm)
+#
+# In return, this play sets the facts: -
+#
+# - iu_token
+
+- name: Get Keycloak API token ({{ realm }} realm)
+  uri:
+    url: https://{{ iu_hostname }}/auth/realms/{{ iu_realm }}/protocol/openid-connect/token
+    method: POST
+    body: "{{ credentials }}&grant_type=password&client_id=admin-cli"
+    headers:
+      Content-Type: application/x-www-form-urlencoded
+  register: token_result
+  vars:
+    credentials: username={{ iu_realm_manager }}&password={{ iu_realm_manager_password }}
+  changed_when: False
+
+- name: Set Keycloak API token fact
+  set_fact:
+    iu_token: "{{ token_result.json.access_token }}"

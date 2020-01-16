@@ -1,0 +1,24 @@
+---
+
+# Add a list of users to a Keycloak realm.
+
+# The user action.
+# One of 'create' or 'delete'
+iu_action: create
+
+# The Keycloak hostname (https:// is assumed)
+iu_hostname: example.com
+# The Realm, realm manager and manager's password...
+iu_realm: ''
+iu_realm_manager: ''
+iu_realm_manager_password: ''
+
+# A list of users.
+# The list contains users and passwords: -
+#
+#   iu_users:
+#   - username: alan
+#     password: blob1234
+#   - username: nala
+#     password: blob5678
+iu_users: []
