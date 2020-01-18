@@ -45,12 +45,12 @@
   register: keycloak_users
   with_items:
   - "{{ iu_users }}"
-  changed_when: False
+  changed_when: no
 
 - name: Collect User Identities
   set_fact:
     user_identities: "{{ keycloak_users|json_query('results[*].json[*].id')|flatten }}"
-  changed_when: False
+  changed_when: no
 
 - name: Delete Keycloak Users
   uri:

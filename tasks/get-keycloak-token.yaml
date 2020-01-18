@@ -24,7 +24,7 @@
   register: token_result
   vars:
     credentials: username={{ iu_realm_manager }}&password={{ iu_realm_manager_password }}
-  changed_when: False
+  changed_when: no
 
 - name: Set Keycloak API token fact
   set_fact:

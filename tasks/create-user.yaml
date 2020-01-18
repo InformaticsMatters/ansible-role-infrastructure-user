@@ -62,7 +62,7 @@
   register: keycloak_users
   with_items:
   - "{{ iu_users }}"
-  changed_when: False
+  changed_when: no
 
 # The above 'query' is run for each expected user.
 # The resultant `keycloak_users' variable is a structure
@@ -79,7 +79,7 @@
 - name: Collect Users
   set_fact:
     known_users: "{{ keycloak_users|json_query('results[*].json[*].username')|flatten }}"
-  changed_when: False
+  changed_when: no
 
 #####
 # 2 #
@@ -124,12 +124,12 @@
     username: "{{ item.username }}"
   with_items:
   - "{{ iu_users }}"
-  changed_when: False
+  changed_when: no
 
 - name: Collect User Identities
   set_fact:
     user_identities: "{{ keycloak_users|json_query('results[*].json[*].id')|flatten }}"
-  changed_when: False
+  changed_when: no
 
 #####
 # 4 #
