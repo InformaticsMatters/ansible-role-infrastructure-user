@@ -1,0 +1,50 @@
+---
+
+# Deletes Realm Roles.
+#
+# Variables that control this set of tasks are: -
+#
+# - iu_hostname               The Keycloak server URL
+#                             typically 'sso.example.org'
+#                             (and assumed to be 'https://')
+# - iu_realm                  The realm the users are to be added to
+# - iu_realm_manager          The manager user in the realm
+# - iu_realm_manager_password The realm user password
+# - iu_roles                  A list of roles to delete
+
+# -----------------------------------------------------------------------------
+
+# Get a keycloak token (sets the fact 'kc_token').
+# Remember that the login user may have changed to admin.
+
+- include_tasks: get-realm-token.yaml
+  vars:
+    realm: "{{ iu_realm }}"
+    realm_user: "{{ iu_realm_manager }}"
+    realm_user_password: "{{ iu_realm_manager_password }}"
+
+# Adding keycloak roles.
+# The steps here are: -
+#
+# 1. Get a list of roles using the 'users_file'
+#    that are already known (this might be nobody)
+# 2. Add all the users from the 'users_file' that aren't known
+# 3. Get user identities for all the users in the users_file
+# 4. Set (reset) passwords for all the users that were added in step 2.
+
+- name: Set API endpoint
+  set_fact:
+    keycloak_endpoint: https://{{ iu_hostname }}/auth/admin/realms/{{ iu_realm }}
+
+- name: Delete Roles
+  uri:
+    url: "{{ keycloak_endpoint }}/roles/{{ item.name }}"
+    method: DELETE
+    body_format: json
+    status_code:
+    - 204
+    - 404
+    headers:
+      Authorization: bearer {{ iu_token }}
+  with_items:
+  - "{{ iu_roles }}"

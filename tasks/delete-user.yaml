@@ -29,9 +29,13 @@
   with_items:
   - "{{ iu_users }}"
 
-# Get a keycloak token (sets the fact 'iu_token').
+# Get a keycloak Realm token (sets the fact 'iu_token').
 
-- include_tasks: get-keycloak-token.yaml
+- include_tasks: get-realm-token.yaml
+  vars:
+    realm: "{{ iu_realm }}"
+    realm_user: "{{ iu_realm_manager }}"
+    realm_user_password: "{{ iu_realm_manager_password }}"
 
 - name: Set API endpoint
   set_fact:

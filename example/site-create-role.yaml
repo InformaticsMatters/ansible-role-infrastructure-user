@@ -6,11 +6,12 @@
       name: informaticsmatters.infrastructure_user
     vars:
       iu_action: create
-      iu_type: user
+      iu_type: role
       iu_hostname: keycloak.example.com
-      iu_realm: im
+      iu_realm: blob
       iu_realm_manager: manager
       iu_realm_manager_password: abc00000
-      iu_users:
-      - username: alan
-        password: blob1234
+      iu_roles:
+      - name: standard-user
+        default: yes
+      - name: blob

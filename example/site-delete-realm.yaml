@@ -1,0 +1,14 @@
+---
+
+- hosts: server
+  tasks:
+  - include_role:
+      name: informaticsmatters.infrastructure_user
+    vars:
+      iu_action: delete
+      iu_type: realm
+      iu_hostname: keycloak.example.com
+      iu_namespace: im-infra
+      iu_realm: blob
+      iu_admin_user: admin
+      iu_admin_password: blob1234

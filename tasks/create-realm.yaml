@@ -1,0 +1,236 @@
+---
+
+# Creates a Realm and associated Realm Manager.
+# The Realm manager credentials are eventually stored in a secret in the
+# keycloak namespace. The secret's name is 'im-realm-manager-{{ iu_realm }}'
+#
+# Variables that control this set of tasks are: -
+#
+# - iu_hostname               The Keycloak server URL
+#                             typically 'sso.example.org'
+#                             (and assumed to be 'https://')
+# - iu_namespace              The namespace Keycloak's deployed to.
+# - iu_realm                  The realm the users are to be added to
+# - iu_realm_manager          The manager user in the realm
+# - iu_realm_manager_password The realm user password
+# - iu_admin                  The existing Keycloak admin user
+# - iu_admin_password         The existing Keycloak admin user password
+
+# -----------------------------------------------------------------------------
+
+- name: Assert control variables
+  assert:
+    that:
+    - iu_hostname|length > 0
+    - iu_namespace|length > 0
+    - iu_realm|length > 0
+    - iu_realm_manager|length > 0
+    - iu_realm_manager_password|length > 0
+    - iu_admin|length > 0
+    - iu_admin_password|length > 0
+
+# Secrets must not exist...
+
+- name: Get secrets
+  k8s_facts:
+    kind: Secret
+    api_version: v1
+    namespace: "{{ iu_namespace }}"
+    name: im-realm-manager-{{ iu_realm }}
+  register: rm_s_result
+
+- name: Check secrets (do not exist)
+  assert:
+    that: rm_s_result.resources|length == 0
+    fail_msg: >-
+      Secrets already exist for this realm. You can't add them again.
+
+# Create the realm (if required)...
+
+- name: Get Keycloak token
+  import_tasks: get-realm-token.yaml
+  vars:
+    realm: master
+    realm_user: "{{ iu_admin }}"
+    realm_user_password: "{{ iu_admin_password }}"
+
+- name: Set API endpoint
+  set_fact:
+    keycloak_endpoint: https://{{ iu_hostname }}/auth/admin/realms
+
+- name: Get existing Realms
+  uri:
+    url: "{{ keycloak_endpoint }}"
+    headers:
+      Authorization: bearer {{ iu_token }}
+  register: realms
+  changed_when: no
+
+# The above 'query' results in a 'realms' variable. A structure
+# with each query represented as an element in the 'json' array.
+# i.e.
+#
+#  "json": [{
+#     "realm": "master"
+#
+# To simplify further processing, we'd like a nice flat list.
+- name: Collect known Realms
+  set_fact:
+    known_realms: "{{ realms|json_query('json[*].realm')|flatten }}"
+
+# Now, add all the realms we need...
+
+- name: Add Realm (if it does not exist)
+  uri:
+    url: "{{ keycloak_endpoint }}"
+    method: POST
+    body: >-
+      {"realm": "{{ iu_realm }}",
+       "enabled": "true"}
+    body_format: json
+    status_code: 201
+    headers:
+      Authorization: bearer {{ iu_token }}
+  when:
+  - iu_realm not in known_realms
+
+# Create the Realm's manager user...
+
+- name: Set API endpoint ({{ iu_realm }})
+  set_fact:
+    keycloak_endpoint: https://{{ iu_hostname }}/auth/admin/realms/{{ iu_realm }}
+
+- name: Query manager account ({{ iu_realm }})
+  uri:
+    url: "{{ keycloak_endpoint }}/users?username={{ iu_realm_manager }}"
+    headers:
+      Authorization: bearer {{ iu_token }}
+  register: manager_user
+  changed_when: no
+
+- name: Get exisiting manager user ID
+  set_fact:
+    existing_manager_user_id: "{{ manager_user|json_query('json[0].id') }}"
+
+- block:
+
+  - name: Add manager user (to {{ iu_realm }} realm)
+    uri:
+      url: "{{ keycloak_endpoint }}/users"
+      method: POST
+      body: >-
+        {"username": "{{ iu_realm_manager }}",
+         "enabled": "true"}
+      body_format: json
+      status_code: 201
+      headers:
+        Authorization: bearer {{ iu_token }}
+      return_content: yes
+    register: manager_resp
+
+  # The user ID is in the returned 'location' field.
+  # "location": "https://sso.192.168.99.100.nip.io/auth/admin/realms/squonk/
+  #                users/394c1e02-0b2b-433c-9512-0bfce6aabf9d"
+
+  - name: Extract assigned user ID
+    set_fact:
+      manager_user_id: >-
+        {{ manager_resp
+           |json_query('location')
+           |urlsplit('path')
+           |basename }}
+
+  - name: Asssert ID
+    assert:
+      that:
+      - manager_user_id is defined
+      - manager_user_id|length > 0
+
+  - name: Set (Reset) manager password
+    uri:
+      url: "{{ keycloak_endpoint }}/users/{{ manager_user_id }}/reset-password"
+      method: PUT
+      body: >-
+        {"type": "password",
+         "temporary": "false",
+         "value": "{{ iu_realm_manager_password }}"}
+      body_format: json
+      status_code: 204
+      headers:
+        Authorization: bearer {{ iu_token }}
+
+  # Now get the 'realm-management' client ID
+  # so we can lookup the available roles it provides...
+  # We need the client ID to make calls, its name if of little use
+  # when  used in other calls.
+
+  - name: Get realm-management client ID
+    uri:
+      url: "{{ keycloak_endpoint }}/clients?clientId=realm-management"
+      headers:
+        Authorization: bearer {{ iu_token }}
+    register: rm_client_id
+
+  - name: Set realm-management client ID
+    set_fact:
+      client_id: "{{ rm_client_id.json[0].id }}"
+
+  # We have a new Realm user (the 'manager').
+  #
+  # Now get the Roles available from the 'realm-management' client...
+  # We're looking for the 'realm-admin' role so we can get its ID...
+
+  - name: Get available realm-management roles
+    uri:
+      url: "{{ keycloak_endpoint }}/{{ method }}"
+      headers:
+        Authorization: bearer {{ iu_token }}
+    register: rm_roles
+    vars:
+      method: users/{{ manager_user_id }}/role-mappings/clients/{{ client_id }}/available
+
+  # 'realm-admin' might not be in the 'available' list.
+  # It isn't if the role's already assigned,
+  # so we need to protect ourselves from not finding it...
+
+  - name: Search for realm-admin role ID
+    set_fact:
+      realm_admin_id_list: "{{ rm_roles|json_query(query) }}"
+    vars:
+      query: "json[?name=='realm-admin'].id"
+
+  - name: Assert realm-admin role exists
+    assert:
+      that: realm_admin_id_list|length > 0
+
+  - name: Get realm-admin role ID
+    set_fact:
+      realm_admin_id: "{{ realm_admin_id_list[0] }}"
+
+  # Add the realm-admin role to the manager account...
+
+  - name: Assign realm-admin role to realm manager
+    uri:
+      url: "{{ keycloak_endpoint }}/{{ method }}"
+      method: POST
+      body: >-
+        [{"clientRole": "true",
+          "composite": "true",
+          "id": "{{ realm_admin_id }}",
+          "name": "realm-admin"}]
+      body_format: json
+      status_code: 204
+      headers:
+        Authorization: bearer {{ iu_token }}
+    vars:
+      method: users/{{ manager_user_id }}/role-mappings/clients/{{ client_id }}
+
+  # Finally, create credentials to hold the Realm manager...
+
+  - name: Write management credentials secret
+    k8s:
+      definition: "{{ lookup('template', 'secret-realm-manager.yaml.j2') }}"
+      wait: yes
+
+  when:
+  - existing_manager_user_id|length == 0

@@ -6,8 +6,10 @@
 
 - name: Check action
   assert:
-    that: iu_action in ['create', 'delete']
+    that:
+    - iu_action in ['create', 'delete']
+    - iu_type in ['realm', 'role', 'user']
 
-# Execute the desired action...
+# Execute the desired action on the required type...
 
-- include_tasks: "{{ iu_action }}-user.yaml"
+- include_tasks: "{{ iu_action }}-{{ iu_type }}.yaml"

@@ -6,6 +6,7 @@
       name: informaticsmatters.infrastructure_user
     vars:
       iu_action: create
+      iu_type: user
       iu_hostname: keycloak.example.com
       iu_realm: im
       iu_realm_manager: manager

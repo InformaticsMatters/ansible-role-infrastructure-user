@@ -1,0 +1,56 @@
+---
+
+# Delete a Realm (and associated Realm Manager) and its secrets.
+#
+# Variables that control this set of tasks are: -
+#
+# - iu_hostname               The Keycloak server URL
+#                             typically 'sso.example.org'
+#                             (and assumed to be 'https://')
+# - iu_namespace              The namespace Keycloak's deployed to.
+# - iu_realm                  The realm the users are to be added to
+# - iu_admin                  The existing Keycloak admin user
+# - iu_admin_password         The existing Keycloak admin user password
+
+# -----------------------------------------------------------------------------
+
+- name: Assert control variables
+  assert:
+    that:
+    - iu_hostname|length > 0
+    - iu_namespace|length > 0
+    - iu_realm|length > 0
+    - iu_admin|length > 0
+    - iu_admin_password|length > 0
+
+# Delete the realm
+
+- name: Get Keycloak token
+  import_tasks: get-realm-token.yaml
+  vars:
+    realm: master
+    realm_user: "{{ iu_admin }}"
+    realm_user_password: "{{ iu_admin_password }}"
+
+- name: Set API endpoint
+  set_fact:
+    keycloak_endpoint: https://{{ iu_hostname }}/auth/admin/realms
+
+- name: Delete realm
+  uri:
+    url: "{{ keycloak_endpoint }}/{{ iu_realm }}"
+    method: DELETE
+    status_code:
+    - 204
+    - 404
+    headers:
+      Authorization: bearer {{ iu_token }}
+  changed_when: no
+
+# Delete the associated secrets
+
+- name: Remove management credentials secret
+  k8s:
+    state: absent
+    definition: "{{ lookup('template', 'secret-realm-manager.yaml.j2') }}"
+    wait: yes
