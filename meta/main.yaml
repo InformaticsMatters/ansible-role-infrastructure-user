@@ -2,7 +2,7 @@
 
 galaxy_info:
 
-  role_name: infrastructure-user
+  role_name: infrastructure_user
   description: Configure an infastructure keycloak user
   author: Alan B. Christie
   company: Informatics Matters Ltd
