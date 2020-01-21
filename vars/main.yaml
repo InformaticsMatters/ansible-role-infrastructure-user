@@ -1,0 +1,4 @@
+---
+
+# Time (in seconds) to wait for a valid Keycloak token
+iu_token_timeout: 120

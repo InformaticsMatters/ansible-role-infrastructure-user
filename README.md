@@ -17,19 +17,32 @@ Requirements
 Role Variables
 --------------
 
-    # The user action.
-    # One of 'create' or 'delete'
+    # The role action.
+    # One of 'create' or 'delete', used in conjunction with 'iu_type'
     iu_action: create
+    # The type of item to create,
+    # One of 'realm', 'role' or 'user'
+    iu_type: user
     
     # The Keycloak hostname (https:// is assumed)
     iu_hostname: example.com
-    # The Realm, realm manager and manager's password...
+    # The Realm, realm manager and manager's password.
+    # The manager user is 'manager' by default
+    # and password is randomly generated if not supplied.
     iu_realm: ''
-    iu_realm_manager: ''
-    iu_realm_manager_password: ''
+    iu_realm_manager: 'manager'
+    iu_realm_manager_password: "{{ lookup('password', '/dev/null length=14 chars=ascii_letters,digits') }}"
+    # The namespace of the Keycloak's instance,
+    # required if creating or deleting a realm.
+    iu_namespace: ''
     
-    # A list of users.
-    # The list contains users and passwords: -
+    # The keycloak admin user name and password
+    # (required to create and delete realms)
+    iu_admin: admin
+    iu_admin_password: ''
+    
+    # A list of users to add to a realm.
+    # The list contains usernames and passwords: -
     #
     #   iu_users:
     #   - username: alan
@@ -37,6 +50,13 @@ Role Variables
     #   - username: nala
     #     password: blob5678
     iu_users: []
+    
+    # A list of roles to add to an existing realm.
+    # It is simply a list of role names: -
+    #
+    #   iu_roles:
+    #   - standard-user
+    iu_roles: []
     
 Dependencies
 ------------
@@ -54,6 +74,7 @@ Example Playbook
           name: informaticsmatters.infrastructure_config
         vars:
           iu_action: create
+          iu_type: user
           iu_hostname: keycloak.example.com
           iu_realm: my-realm
           iu_realm_manager: manager

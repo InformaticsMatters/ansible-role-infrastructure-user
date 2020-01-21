@@ -1,12 +1,10 @@
 ---
 
-# Add a list of users to a Keycloak realm.
-
 # The role action.
 # One of 'create' or 'delete', used in conjunction with 'iu_type'
 iu_action: create
 # The type of item to create,
-# One of 'user', 'realm' or 'role'
+# One of 'realm', 'role' or 'user'
 iu_type: user
 
 # The Keycloak hostname (https:// is assumed)

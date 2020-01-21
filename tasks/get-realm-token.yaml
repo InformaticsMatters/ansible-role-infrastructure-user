@@ -34,6 +34,11 @@
   register: token_result
   vars:
     credentials: username={{ realm_user }}&password={{ realm_user_password }}
+  until: >-
+    token_result.json is defined
+    and token_result.json.access_token is defined
+  delay: 4
+  retries: "{{ (iu_token_timeout|int / 4)|int }}"
   changed_when: no
 
 - name: Set Keycloak API token fact
