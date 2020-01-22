@@ -42,6 +42,7 @@ Role Variables
     iu_admin_password: ''
     
     # A list of users to add to a realm.
+    # Used when 'iu_type' is 'user'.
     # The list contains usernames and passwords: -
     #
     #   iu_users:
@@ -52,12 +53,14 @@ Role Variables
     iu_users: []
     
     # A list of roles to add to an existing realm.
+    # Used when 'iu_type' is 'role'.
     # It is simply a list of role names: -
     #
     #   iu_roles:
-    #   - standard-user
+    #   - name: standard-user
+    #     default: yes
     iu_roles: []
-    
+   
 Dependencies
 ------------
 
