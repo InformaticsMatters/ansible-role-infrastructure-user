@@ -5,6 +5,8 @@ Ansible Role - informaticsmatters.infrastructure_user
 ![GitHub release (latest by date)](https://img.shields.io/github/v/release/informaticsmatters/ansible-role-infrastructure-user)
 ![Ansible Role](https://img.shields.io/ansible/role/45913)
 
+[![CodeFactor](https://www.codefactor.io/repository/github/informaticsmatters/ansible-role-infrastructure-user/badge)](https://www.codefactor.io/repository/github/informaticsmatters/ansible-role-infrastructure-user)
+
 A Kubernetes-based Role for the configuration of a pre-deployed infrastructure.
 This role provides actions to add and remove Keycloak users in the
 infrastructure deployment.
